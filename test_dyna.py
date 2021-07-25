@@ -76,17 +76,18 @@ elif opt.dataset_mode == 'OpenImage':
 
 ############################ Things recommanded to be changed ##########################################
 # Set up the training procedure
-opt.C_channel = 48
+opt.C_channel = 16
 opt.SNR = 20
 opt.is_infer = True 
-opt.method = 'st'
+opt.method = 'gumbel'
 opt.temp = 5
 opt.lambda_reward = 1
 opt.lambda_L2 = 256       # The weight for L2 loss
-opt.selection = False
+opt.selection = True
 
 opt.how_many_channel = 5
 opt.num_test = 500
+opt.threshold=4
 ##############################################################################################################
 
 opt.activation = 'sigmoid'    # The output activation function at the last layer in the decoder
@@ -163,7 +164,6 @@ model.eval()
 
 total_iters = 0                # the total number of training iterations
 
-
 output_path = './Images/' + opt.dataset_mode + '_dyna/' + opt.name
 if os.path.exists(output_path) == False:
     os.makedirs(output_path)
@@ -188,7 +188,7 @@ for i, data in enumerate(dataset):
         input = data['data']
 
     model.set_input(input.repeat(opt.how_many_channel, 1, 1, 1))
-    model.forward()
+    model.forward(is_infer=False-)
     fake = model.fake
     hard_mask = model.hard_mask
 

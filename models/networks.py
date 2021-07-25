@@ -666,10 +666,10 @@ def define_dynaG(output_nc, ngf, max_ngf, n_downsample, C_channel, n_blocks, nor
     net = Generator_dyna(output_nc=output_nc, ngf=ngf, max_ngf=max_ngf, C_channel=C_channel, n_blocks=n_blocks, n_downsampling=n_downsample, norm_layer=norm_layer, padding_type="reflect", first_kernel=first_kernel, activation_=activation)
     return init_net(net, init_type, init_gain, gpu_ids)
 
-def define_dynaP(ngf, max_ngf, C_channel, n_downsample, norm='instance', init_type='kaiming', init_gain=0.02, gpu_ids=[], image_W=32, image_H=32, is_infer=False, method='gate'):
+def define_dynaP(ngf, max_ngf, C_channel, n_downsample, norm='instance', init_type='kaiming', init_gain=0.02, gpu_ids=[], image_W=32, image_H=32, is_infer=False, method='gate', threshold=4):
     net = None
     norm_layer = get_norm_layer(norm_type=norm)
-    net = Policy_dyna(ngf=ngf, max_ngf=max_ngf, C_channel=C_channel, n_downsampling=n_downsample, norm_layer=norm_layer, image_W=image_W, image_H=image_H, is_infer=is_infer, method=method)
+    net = Policy_dyna(ngf=ngf, max_ngf=max_ngf, C_channel=C_channel, n_downsampling=n_downsample, norm_layer=norm_layer, image_W=image_W, image_H=image_H, is_infer=is_infer, method=method, threshold=threshold)
     return init_net(net, 'normal', 0.002, gpu_ids)
 
 
@@ -773,7 +773,7 @@ class Generator_dyna(nn.Module):
 
 
 class Policy_dyna(nn.Module):
-    def __init__(self, ngf=64, max_ngf=512, C_channel=16, n_downsampling=2, norm_layer=nn.BatchNorm2d, image_W=32, image_H=32, is_infer=False, method='gate'):
+    def __init__(self, ngf=64, max_ngf=512, C_channel=16, n_downsampling=2, norm_layer=nn.BatchNorm2d, image_W=32, image_H=32, is_infer=False, method='gate', threshold=4):
 
         super(Policy_dyna, self).__init__()
 
@@ -789,62 +789,60 @@ class Policy_dyna(nn.Module):
         image_H = image_H//mult
 
         # Policy network
-        model = [nn.Conv2d(min(ngf * mult * 2, max_ngf), C_channel-4, kernel_size=3, padding=1, bias=use_bias),
-                 norm_layer(C_channel-4), activation]
-        self.model_gate_1 = nn.Sequential(*model)
-
-        model = [nn.Linear(image_W*image_H, 32), nn.Dropout(0.5), activation,
-                 nn.Linear(32, 8), nn.Dropout(0.5), activation,
-                 nn.Linear(8, 1)]
-        self.model_gate_2 = nn.Sequential(*model)
+        model = [nn.Linear(image_W*image_H*C_channel, 4*C_channel), nn.Dropout(0.5), activation,
+                 nn.Linear(4*C_channel, 4*C_channel), nn.Dropout(0.5), activation,
+                 nn.Linear(4*C_channel, C_channel)]
+        self.model_gate = nn.Sequential(*model)
 
         self.is_infer = is_infer
         self.method = method
         self.C_channel = C_channel
+        
+        self.threshold=threshold
+        
+        self.map = torch.zeros((C_channel, C_channel))
+        for i in range(C_channel):
+            self.map[i, :i+1] = 1
+        
+        self.CC = torch.arange(0,C_channel)+1
 
-
-    def forward(self, z, temp=5):
+    def forward(self, z, temp=5, is_infer=False):
 
         # Policy/gate network
-        N, C, W, H = z.shape
-        z_1 = self.model_gate_1(z).view(N, self.C_channel-4, -1)
-        z_2 = self.model_gate_2(z_1)      # N x C
+        N, C, W, H = z.shape        
+        z = self.model_gate(z.view(N, -1))      # N x C
+        
+        
+        if self.map.device != prob.device:
+            self.map = self.map.to(prob.device)
+            self.CC = self.CC.to(prob.device).float()
 
-        prob = torch.sigmoid(z_2)
-
-        if self.is_infer: # If used for inference
+        if is_infer: # If used for inference
+            index = torch.argmax(z, dim=-1)
             hard_mask = torch.zeros_like(prob)
-            hard_mask[prob>0.5] = 1
-            return hard_mask, prob
+            for i in range(hard_mask.shape[0]):
+                hard_mask[i, :index[i]] = 1
+            return hard_mask, z
 
         else: # If used for training, adopt gumbel-softmax
-            if self.method == 'gate':
-                index = torch.zeros_like(prob)
-                index[prob>0.5] = 1
-                with torch.no_grad():
-                    bias = index - prob
-                hard_mask = prob+bias
-                return hard_mask, prob
-
-            elif self.method == 'st':
-                index = torch.bernoulli(clamp_probs(prob.detach()))
-                with torch.no_grad():
-                    bias = index - prob
-                hard_mask = prob + bias
+            if self.method == 'gate_acu':
+                prob = torch.sigmoid(z)
+                with torch.no_grad(): 
+                    prob_cum = torch.cumsum(prob, dim=1)
+                    tmp = prob_cum-self.threshold
+                    index = torch.sum(tmp<0, dim=1)
+                    hard_mask = torch.zeros_like(prob)
+                    for i in range(hard_mask.shape[0]):
+                        hard_mask[i, :index[i]] = 1
                 return hard_mask, prob
 
             elif self.method == 'gumbel':
-                prob = clamp_probs(prob)
-                uniforms = clamp_probs(torch.rand_like(prob))
-                logits = (uniforms.log() - (-uniforms).log1p() + prob.log() - (-prob).log1p())/temp
-                soft = torch.sigmoid(logits)
-                index = torch.zeros_like(soft)
-                index[soft>0.5] = 1
-                with torch.no_grad():
-                    bias = index - soft
-                hard_mask = soft + bias
+                
+                hard = nn.functional.gumbel_softmax(z, temp, dim=-1. hard=True)
 
-                return hard_mask, prob, soft
+                hard_mask = torch.matmul(hard, self.map)
+
+                return hard_mask, z
 
 
 class Policy_dyna_cate(nn.Module):
