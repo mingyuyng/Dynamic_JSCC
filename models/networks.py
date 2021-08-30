@@ -20,6 +20,7 @@ Tensor = TypeVar('torch.tensor')
 # Functions
 ###############################################################################
 
+
 class Identity(nn.Module):
     def forward(self, x):
         return x
@@ -78,6 +79,7 @@ def init_weights(net, init_type='normal', init_gain=0.02):
     print('initialize network with %s' % init_type)
     net.apply(init_func)  # apply the initialization function <init_func>
 
+
 def init_net(net, init_type='normal', init_gain=0.02, gpu_ids=[]):
     """Initialize a network: 1. register CPU/GPU device (with multi-GPU support); 2. initialize the network weights
     Parameters:
@@ -125,17 +127,17 @@ def get_scheduler(optimizer, opt):
     return scheduler
 
 
-
 class Flatten(nn.Module):
-  def forward(self, x):
-    N, C, H, W = x.size() # read in N, C, H, W
-    return x.view(N, -1)  # "flatten" the C * H * W values into a single vector per image
+    def forward(self, x):
+        N, C, H, W = x.size()  # read in N, C, H, W
+        return x.view(N, -1)  # "flatten" the C * H * W values into a single vector per image
+
 
 class Normalize(nn.Module):
-  def forward(self, x, power):
-    N = x.shape[0]
-    pwr = torch.mean(x**2, (1,2,3), True)
-    return np.sqrt(power)*x/torch.sqrt(pwr)
+    def forward(self, x, power):
+        N = x.shape[0]
+        pwr = torch.mean(x**2, (1, 2, 3), True)
+        return np.sqrt(power) * x / torch.sqrt(pwr)
 
 
 def define_G(output_nc, ngf, max_ngf, n_downsample, C_channel, n_blocks, norm="instance", init_type='kaiming', init_gain=0.02, gpu_ids=[], first_kernel=7, activation='sigmoid'):
@@ -144,10 +146,12 @@ def define_G(output_nc, ngf, max_ngf, n_downsample, C_channel, n_blocks, norm="i
     net = Generator(output_nc=output_nc, ngf=ngf, max_ngf=max_ngf, C_channel=C_channel, n_blocks=n_blocks, n_downsampling=n_downsample, norm_layer=norm_layer, padding_type="reflect", first_kernel=first_kernel, activation_=activation)
     return init_net(net, init_type, init_gain, gpu_ids)
 
+
 def define_JSCC_G(C_channel, init_type='kaiming', init_gain=0.02, gpu_ids=[]):
     net = None
     net = JSCC_decoder(C_channel)
     return init_net(net, init_type, init_gain, gpu_ids)
+
 
 def print_network(net):
     if isinstance(net, list):
@@ -161,6 +165,8 @@ def print_network(net):
 ##############################################################################
 # Losses
 ##############################################################################
+
+
 class GANLoss(nn.Module):
     """Define different GAN objectives.
 
@@ -283,8 +289,8 @@ class Encoder(nn.Module):
             n_blocks (int)      -- the number of ResNet blocks
             padding_type (str)  -- the name of padding layer in conv layers: reflect | replicate | zero
         """
-        assert(n_downsampling>=0)
-        assert(n_blocks>=0)
+        assert(n_downsampling >= 0)
+        assert(n_blocks >= 0)
         super(Encoder, self).__init__()
 
         if type(norm_layer) == functools.partial:
@@ -294,7 +300,7 @@ class Encoder(nn.Module):
 
         activation = nn.ReLU(True)
 
-        model = [nn.ReflectionPad2d((first_kernel-1)//2),
+        model = [nn.ReflectionPad2d((first_kernel - 1) // 2),
                  nn.Conv2d(input_nc, ngf, kernel_size=first_kernel, padding=0, bias=use_bias),
                  norm_layer(ngf),
                  activation]
@@ -302,27 +308,27 @@ class Encoder(nn.Module):
         # add downsampling layers
         for i in range(n_downsampling):
             mult = 2**i
-            model += [nn.Conv2d(min(ngf * mult,max_ngf), min(ngf * mult * 2,max_ngf), kernel_size=3, stride=2, padding=1, bias=use_bias),
+            model += [nn.Conv2d(min(ngf * mult, max_ngf), min(ngf * mult * 2, max_ngf), kernel_size=3, stride=2, padding=1, bias=use_bias),
                       norm_layer(min(ngf * mult * 2, max_ngf)), activation]
 
         # add ResNet blocks
         mult = 2 ** n_downsampling
         for i in range(n_blocks):
-            model += [ResnetBlock(min(ngf * mult,max_ngf), padding_type=padding_type, norm_layer=norm_layer, use_dropout=False, use_bias=use_bias)]
-
+            model += [ResnetBlock(min(ngf * mult, max_ngf), padding_type=padding_type, norm_layer=norm_layer, use_dropout=False, use_bias=use_bias)]
 
         self.model = nn.Sequential(*model)
-        self.projection = nn.Conv2d(min(ngf * mult,max_ngf), C_channel, kernel_size=3, padding=1, stride=1, bias=use_bias)
+        self.projection = nn.Conv2d(min(ngf * mult, max_ngf), C_channel, kernel_size=3, padding=1, stride=1, bias=use_bias)
         self.normalization = norm_layer(C_channel)
+
     def forward(self, input):
-        z =  self.model(input)
-        return  self.projection(z)
+        z = self.model(input)
+        return self.projection(z)
 
 
 class Generator(nn.Module):
     def __init__(self, output_nc, ngf=64, max_ngf=512, C_channel=16, n_blocks=2, n_downsampling=2, norm_layer=nn.BatchNorm2d, padding_type="reflect", first_kernel=7, activation_='sigmoid'):
-        assert (n_blocks>=0)
-        assert(n_downsampling>=0)
+        assert (n_blocks >= 0)
+        assert(n_downsampling >= 0)
 
         super(Generator, self).__init__()
 
@@ -337,64 +343,67 @@ class Generator(nn.Module):
 
         mult = 2 ** n_downsampling
         ngf_dim = min(ngf * mult, max_ngf)
-        model = [nn.Conv2d(C_channel,ngf_dim,kernel_size=3, padding=1 ,stride=1, bias=use_bias)]
+        model = [nn.Conv2d(C_channel, ngf_dim, kernel_size=3, padding=1, stride=1, bias=use_bias)]
 
         for i in range(n_blocks):
             model += [ResnetBlock(ngf_dim, padding_type=padding_type, norm_layer=norm_layer, use_dropout=False, use_bias=use_bias)]
 
         for i in range(n_downsampling):
             mult = 2 ** (n_downsampling - i)
-            model += [nn.ConvTranspose2d(min(ngf * mult,max_ngf), min(ngf * mult //2, max_ngf),
+            model += [nn.ConvTranspose2d(min(ngf * mult, max_ngf), min(ngf * mult // 2, max_ngf),
                                          kernel_size=3, stride=2,
                                          padding=1, output_padding=1,
                                          bias=use_bias),
-                      norm_layer(min(ngf * mult //2, max_ngf)),
+                      norm_layer(min(ngf * mult // 2, max_ngf)),
                       activation]
 
-        model += [nn.ReflectionPad2d((first_kernel-1)//2), nn.Conv2d(ngf, output_nc, kernel_size=first_kernel, padding=0)]
+        model += [nn.ReflectionPad2d((first_kernel - 1) // 2), nn.Conv2d(ngf, output_nc, kernel_size=first_kernel, padding=0)]
 
         if activation_ == 'tanh':
-            model +=[nn.Tanh()]
+            model += [nn.Tanh()]
         elif activation_ == 'sigmoid':
-            model +=[nn.Sigmoid()]
+            model += [nn.Sigmoid()]
 
         self.model = nn.Sequential(*model)
 
     def forward(self, input):
 
-        if self.activation_=='tanh':
+        if self.activation_ == 'tanh':
             return self.model(input)
-        elif self.activation_=='sigmoid':
-            return 2*self.model(input)-1
+        elif self.activation_ == 'sigmoid':
+            return 2 * self.model(input) - 1
 
 #############################################################################################################
+
+
 class bsc_channel(nn.Module):
     def __init__(self, opt):
         super(bsc_channel, self).__init__()
-        self.opt=opt
+        self.opt = opt
         self.Temp = self.opt.temp
+
     def forward(self, x):
 
         # 1. Generating the probability for bernoulli distribution
-        if self.opt.enc_type =='prob':
+        if self.opt.enc_type == 'prob':
             pass
         elif self.opt.enc_type == 'hard':
             index = torch.zeros_like(x)
-            index[x>0.5] = 1
+            index[x > 0.5] = 1
             with torch.no_grad():
                 bias = index - x
             x = x + bias
         elif self.opt.enc_type == 'soft':
-            x = torch.sigmoid((x**2-(x-1)**2)/self.Temp)
-        elif  self.opt.enc_type == 'soft_hard':
-            x = torch.sigmoid((x**2-(x-1)**2)/self.Temp)
+            x = torch.sigmoid((x**2 - (x - 1)**2) / self.Temp)
+        elif self.opt.enc_type == 'soft_hard':
+            x = torch.sigmoid((x**2 - (x - 1)**2) / self.Temp)
             index = torch.zeros_like(x)
-            index[x>0.5] = 1
+            index[x > 0.5] = 1
             with torch.no_grad():
                 bias = index - x
             x = x + bias
 
-        out_prob = self.opt.ber + x - 2*self.opt.ber*x
+        out_prob = self.opt.ber + x - 2 * self.opt.ber * x
 
         # 2. Sample the bernoulli distribution and generate decoder input
         if self.opt.sample_type == 'st':
@@ -406,38 +415,39 @@ class bsc_channel(nn.Module):
         elif self.opt.sample_type == 'gumbel_softmax':
             probs = clamp_probs(out_prob)
             uniforms = clamp_probs(torch.rand_like(out_prob))
-            logits = (uniforms.log() - (-uniforms).log1p() + probs.log() - (-probs).log1p())/self.Temp
+            logits = (uniforms.log() - (-uniforms).log1p() + probs.log() - (-probs).log1p()) / self.Temp
             dec_in = torch.sigmoid(logits)
         elif self.opt.sample_type == 'gumbel_softmax_hard':
             probs = clamp_probs(out_prob)
             uniforms = clamp_probs(torch.rand_like(out_prob))
-            logits = (uniforms.log() - (-uniforms).log1p() + probs.log() - (-probs).log1p())/self.Temp
+            logits = (uniforms.log() - (-uniforms).log1p() + probs.log() - (-probs).log1p()) / self.Temp
             dec_in = torch.sigmoid(logits)
             index = torch.zeros_like(x)
-            index[dec_in>0.5] = 1
+            index[dec_in > 0.5] = 1
             with torch.no_grad():
                 bias = index - dec_in
             dec_in = dec_in + bias
 
         return dec_in
 
-    def update_Temp(self,new_temp):
+    def update_Temp(self, new_temp):
         self.Temp = new_temp
 
 
 class awgn_channel(nn.Module):
     def __init__(self, opt):
         super(awgn_channel, self).__init__()
-        self.opt=opt
-        self.sigma = 10**(-opt.SNR/20)
+        self.opt = opt
+        self.sigma = 10**(-opt.SNR / 20)
 
     def forward(self, x):
 
         noise = self.sigma * torch.randn_like(x)
-        dec_in = x+noise
+        dec_in = x + noise
         return dec_in
 
 ##################################################################################################################################
+
 
 class ResnetBlock(nn.Module):
     """Define a Resnet block"""
@@ -544,19 +554,17 @@ class NLayerDiscriminator(nn.Module):
 
         sequence += [[nn.Conv2d(ndf * nf_mult, 1, kernel_size=kw, stride=1, padding=padw)]]  # output 1 channel prediction map
 
-
         for n in range(len(sequence)):
-            setattr(self, 'model'+str(n), nn.Sequential(*sequence[n]))
-
+            setattr(self, 'model' + str(n), nn.Sequential(*sequence[n]))
 
     def forward(self, input):
         """Standard forward."""
         res = [input]
-        for n in range(self.n_layers+1):
-            model = getattr(self, 'model'+str(n))
+        for n in range(self.n_layers + 1):
+            model = getattr(self, 'model' + str(n))
             res.append(model(res[-1]))
 
-        model = getattr(self, 'model'+str(self.n_layers+1))
+        model = getattr(self, 'model' + str(self.n_layers + 1))
         out = model(res[-1])
 
         return res[1:], out
@@ -594,32 +602,32 @@ class PixelDiscriminator(nn.Module):
         return self.net(input)
 
 
-
 class MultiscaleDiscriminator(nn.Module):
     def __init__(self, input_nc, ndf=64, n_layers=3, norm_layer=nn.BatchNorm2d,
-                 use_sigmoid=False, num_D=3, getIntermFeat=False,one_D_conv=False, one_D_conv_size=63):
+                 use_sigmoid=False, num_D=3, getIntermFeat=False, one_D_conv=False, one_D_conv_size=63):
         super(MultiscaleDiscriminator, self).__init__()
 
         self.num_D = num_D
         self.n_layers = n_layers
         self.getIntermFeat = getIntermFeat
 
-        for i in range(num_D-1):
+        for i in range(num_D - 1):
             netD = NLayerDiscriminator(input_nc, ndf, n_layers, norm_layer, use_sigmoid, getIntermFeat)
             if getIntermFeat:
-                for j in range(n_layers+2):
-                    setattr(self, 'scale'+str(i)+'_layer'+str(j), getattr(netD, 'model'+str(j)))
+                for j in range(n_layers + 2):
+                    setattr(self, 'scale' + str(i) + '_layer' + str(j), getattr(netD, 'model' + str(j)))
             else:
-                setattr(self, 'layer'+str(i), netD.model)
-        netD = NLayerDiscriminator(input_nc,ndf,n_layers,norm_layer,use_sigmoid,getIntermFeat,one_D_conv=one_D_conv,one_D_conv_size=one_D_conv_size)
+                setattr(self, 'layer' + str(i), netD.model)
+        netD = NLayerDiscriminator(input_nc, ndf, n_layers, norm_layer, use_sigmoid, getIntermFeat, one_D_conv=one_D_conv, one_D_conv_size=one_D_conv_size)
         if getIntermFeat:
-            for j in range(n_layers+2):
-                setattr(self, 'scale' + str(num_D-1) + '_layer' + str(j), getattr(netD, 'model' + str(j)))
+            for j in range(n_layers + 2):
+                setattr(self, 'scale' + str(num_D - 1) + '_layer' + str(j), getattr(netD, 'model' + str(j)))
         else:
-            setattr(self,'layer'+str(num_D-1),netD.model)
+            setattr(self, 'layer' + str(num_D - 1), netD.model)
 
         self.downsample = nn.AvgPool2d(3, stride=2, padding=[1, 1], count_include_pad=False)
         self.one_D_conv = one_D_conv
+
     def singleD_forward(self, model, input):
         if self.getIntermFeat:
             result = [input]
@@ -634,13 +642,13 @@ class MultiscaleDiscriminator(nn.Module):
         result = []
         input_downsampled = input
 
-        for i in range(num_D-1):
+        for i in range(num_D - 1):
             if self.getIntermFeat:
-                model = [getattr(self, 'scale'+str(i)+'_layer'+str(j)) for j in range(self.n_layers+2)]
+                model = [getattr(self, 'scale' + str(i) + '_layer' + str(j)) for j in range(self.n_layers + 2)]
             else:
-                model = getattr(self, 'layer'+str(i))
+                model = getattr(self, 'layer' + str(i))
             result.append(self.singleD_forward(model, input_downsampled))
-            if i != (num_D-1):
+            if i != (num_D - 1):
                 input_downsampled = self.downsample(input_downsampled)
         if self.getIntermFeat:
             model = [getattr(self, 'scale' + str(num_D - 1) + '_layer' + str(j)) for j in range(self.n_layers + 2)]
@@ -649,10 +657,11 @@ class MultiscaleDiscriminator(nn.Module):
         if self.one_D_conv:
             result.append(self.singleD_forward(model, input))
         else:
-            result.append(self.singleD_forward(model,input_downsampled))
+            result.append(self.singleD_forward(model, input_downsampled))
         return result
 
 ########################################################
+
 
 def define_dynaE(input_nc, ngf, max_ngf, n_downsample, C_channel, n_blocks, norm='instance', init_type='kaiming', init_gain=0.02, gpu_ids=[], first_kernel=7):
     net = None
@@ -660,16 +669,18 @@ def define_dynaE(input_nc, ngf, max_ngf, n_downsample, C_channel, n_blocks, norm
     net = Encoder_dyna(input_nc=input_nc, ngf=ngf, max_ngf=max_ngf, C_channel=C_channel, n_blocks=n_blocks, n_downsampling=n_downsample, norm_layer=norm_layer, padding_type="reflect", first_kernel=first_kernel)
     return init_net(net, init_type, init_gain, gpu_ids)
 
+
 def define_dynaG(output_nc, ngf, max_ngf, n_downsample, C_channel, n_blocks, norm='instance', init_type='kaiming', init_gain=0.02, gpu_ids=[], first_kernel=7, activation='sigmoid'):
     net = None
     norm_layer = get_norm_layer(norm_type=norm)
     net = Generator_dyna(output_nc=output_nc, ngf=ngf, max_ngf=max_ngf, C_channel=C_channel, n_blocks=n_blocks, n_downsampling=n_downsample, norm_layer=norm_layer, padding_type="reflect", first_kernel=first_kernel, activation_=activation)
     return init_net(net, init_type, init_gain, gpu_ids)
 
-def define_dynaP(ngf, max_ngf, C_channel, n_downsample, norm='instance', init_type='kaiming', init_gain=0.02, gpu_ids=[], image_W=32, image_H=32, is_infer=False, method='gate', threshold=4):
+
+def define_dynaP(ngf, max_ngf, C_channel, n_downsample, norm='instance', init_type='kaiming', init_gain=0.02, gpu_ids=[], image_W=32, image_H=32, method='gate', N_output=7):
     net = None
     norm_layer = get_norm_layer(norm_type=norm)
-    net = Policy_dyna(ngf=ngf, max_ngf=max_ngf, C_channel=C_channel, n_downsampling=n_downsample, norm_layer=norm_layer, image_W=image_W, image_H=image_H, is_infer=is_infer, method=method, threshold=threshold)
+    net = Policy_dyna(ngf=ngf, max_ngf=max_ngf, C_channel=C_channel, n_downsampling=n_downsample, norm_layer=norm_layer, image_W=image_W, image_H=image_H, method=method, N_output=N_output)
     return init_net(net, 'normal', 0.002, gpu_ids)
 
 
@@ -677,8 +688,8 @@ class Encoder_dyna(nn.Module):
 
     def __init__(self, input_nc, ngf=64, max_ngf=512, C_channel=16, n_blocks=2, n_downsampling=2, norm_layer=nn.BatchNorm2d, padding_type="reflect", first_kernel=7):
 
-        assert(n_downsampling>=0)
-        assert(n_blocks>=0)
+        assert(n_downsampling >= 0)
+        assert(n_blocks >= 0)
         super(Encoder_dyna, self).__init__()
 
         if type(norm_layer) == functools.partial:
@@ -689,7 +700,7 @@ class Encoder_dyna(nn.Module):
         activation = nn.ReLU(True)
 
         # Downscale network
-        model = [nn.ReflectionPad2d((first_kernel-1)//2),
+        model = [nn.ReflectionPad2d((first_kernel - 1) // 2),
                  nn.Conv2d(input_nc, ngf, kernel_size=first_kernel, padding=0, bias=use_bias),
                  norm_layer(ngf),
                  activation]
@@ -697,33 +708,32 @@ class Encoder_dyna(nn.Module):
         # add downsampling layers
         for i in range(n_downsampling):
             mult = 2**i
-            model += [nn.Conv2d(min(ngf * mult,max_ngf), min(ngf * mult * 2,max_ngf), kernel_size=3, stride=2, padding=1, bias=use_bias),
+            model += [nn.Conv2d(min(ngf * mult, max_ngf), min(ngf * mult * 2, max_ngf), kernel_size=3, stride=2, padding=1, bias=use_bias),
                       norm_layer(min(ngf * mult * 2, max_ngf)), activation]
 
         self.model_downsample = nn.Sequential(*model)
 
         # Resnet
-        model= []
         mult = 2 ** n_downsampling
-        for i in range(n_blocks):
-            model += [ResnetBlock(min(ngf * mult,max_ngf), padding_type=padding_type, norm_layer=norm_layer, use_dropout=False, use_bias=use_bias)]
+        self.res1 = ResnetBlock(min(ngf * mult, max_ngf), padding_type=padding_type, norm_layer=norm_layer, use_dropout=False, use_bias=use_bias)
+        self.res2 = ResnetBlock(min(ngf * mult, max_ngf), padding_type=padding_type, norm_layer=norm_layer, use_dropout=False, use_bias=use_bias)
+        self.mod1 = modulation(min(ngf * mult, max_ngf))
+        self.mod2 = modulation(min(ngf * mult, max_ngf))
 
-        self.model_res = nn.Sequential(*model)
+        self.projection = nn.Conv2d(min(ngf * mult, max_ngf), C_channel, kernel_size=3, padding=1, stride=1, bias=use_bias)
 
-        self.projection = nn.Conv2d(min(ngf * mult,max_ngf), C_channel, kernel_size=3, padding=1, stride=1, bias=use_bias)
-
-    def forward(self, input):
-
-        z =  self.model_downsample(input)
-        latent = self.projection(self.model_res(z))
-
+    def forward(self, input, SNR):
+        z = self.model_downsample(input)
+        z = self.mod1(self.res1(z), SNR)
+        z = self.mod2(self.res2(z), SNR)
+        latent = self.projection(z)
         return latent, z
 
 
 class Generator_dyna(nn.Module):
     def __init__(self, output_nc, ngf=64, max_ngf=512, C_channel=16, n_blocks=2, n_downsampling=2, norm_layer=nn.BatchNorm2d, padding_type="reflect", first_kernel=7, activation_='sigmoid'):
-        assert (n_blocks>=0)
-        assert(n_downsampling>=0)
+        assert (n_blocks >= 0)
+        assert(n_downsampling >= 0)
 
         super(Generator_dyna, self).__init__()
 
@@ -739,185 +749,120 @@ class Generator_dyna(nn.Module):
         mult = 2 ** n_downsampling
         ngf_dim = min(ngf * mult, max_ngf)
 
-        self.mask_conv = nn.Conv2d(C_channel,ngf_dim,kernel_size=3, padding=1 ,stride=1, bias=use_bias)
+        self.mask_conv = nn.Conv2d(C_channel, ngf_dim, kernel_size=3, padding=1, stride=1, bias=use_bias)
 
         model = []
-        for i in range(n_blocks):
-            model += [ResnetBlock(ngf_dim, padding_type=padding_type, norm_layer=norm_layer, use_dropout=False, use_bias=use_bias)]
+
+        self.res1 = ResnetBlock(ngf_dim, padding_type=padding_type, norm_layer=norm_layer, use_dropout=False, use_bias=use_bias)
+        self.res2 = ResnetBlock(ngf_dim, padding_type=padding_type, norm_layer=norm_layer, use_dropout=False, use_bias=use_bias)
+        self.mod1 = modulation(ngf_dim)
+        self.mod2 = modulation(ngf_dim)
 
         for i in range(n_downsampling):
             mult = 2 ** (n_downsampling - i)
-            model += [nn.ConvTranspose2d(min(ngf * mult,max_ngf), min(ngf * mult //2, max_ngf),
+            model += [nn.ConvTranspose2d(min(ngf * mult, max_ngf), min(ngf * mult // 2, max_ngf),
                                          kernel_size=3, stride=2,
                                          padding=1, output_padding=1,
                                          bias=use_bias),
-                      norm_layer(min(ngf * mult //2, max_ngf)),
+                      norm_layer(min(ngf * mult // 2, max_ngf)),
                       activation]
 
-        model += [nn.ReflectionPad2d((first_kernel-1)//2), nn.Conv2d(ngf, output_nc, kernel_size=first_kernel, padding=0)]
+        model += [nn.ReflectionPad2d((first_kernel - 1) // 2), nn.Conv2d(ngf, output_nc, kernel_size=first_kernel, padding=0)]
 
         if activation_ == 'tanh':
-            model +=[nn.Tanh()]
+            model += [nn.Tanh()]
         elif activation_ == 'sigmoid':
-            model +=[nn.Sigmoid()]
+            model += [nn.Sigmoid()]
 
         self.model = nn.Sequential(*model)
 
-    def forward(self, input):
+    def forward(self, input, SNR):
+        z = self.mask_conv(input)
+        z = self.mod1(self.res1(z), SNR)
+        z = self.mod2(self.res2(z), SNR)
 
-        feature = self.mask_conv(input)
-        if self.activation_=='tanh':
-            return self.model(feature)
-        elif self.activation_=='sigmoid':
-            return 2*self.model(feature)-1
+        if self.activation_ == 'tanh':
+            return self.model(z)
+        elif self.activation_ == 'sigmoid':
+            return 2 * self.model(z) - 1
 
 
 class Policy_dyna(nn.Module):
-    def __init__(self, ngf=64, max_ngf=512, C_channel=16, n_downsampling=2, norm_layer=nn.BatchNorm2d, image_W=32, image_H=32, is_infer=False, method='gate', threshold=4):
+    def __init__(self, ngf=64, max_ngf=512, C_channel=16, N_output=7, n_downsampling=2, norm_layer=nn.BatchNorm2d, image_W=32, image_H=32, is_infer=False, method='gate', threshold=4):
 
         super(Policy_dyna, self).__init__()
 
-        if type(norm_layer) == functools.partial:
-            use_bias = norm_layer.func == nn.InstanceNorm2d
-        else:
-            use_bias = norm_layer == nn.InstanceNorm2d
-
         activation = nn.ReLU(True)
 
         mult = 2 ** n_downsampling
-        image_W = image_W//mult
-        image_H = image_H//mult
+        image_W = image_W // mult
+        image_H = image_H // mult
 
         # Policy network
-        model = [nn.Linear(image_W*image_H*C_channel, 4*C_channel), nn.Dropout(0.5), activation,
-                 nn.Linear(4*C_channel, 4*C_channel), nn.Dropout(0.5), activation,
-                 nn.Linear(4*C_channel, C_channel)]
+        model = [nn.Linear(C_channel + 1, 64), activation, nn.BatchNorm1d(64),
+                 nn.Linear(64, 64), activation, nn.BatchNorm1d(64),
+                 nn.Linear(64, N_output)]
         self.model_gate = nn.Sequential(*model)
 
-        self.is_infer = is_infer
-        self.method = method
-        self.C_channel = C_channel
-        
-        self.threshold=threshold
-        
-        self.map = torch.zeros((C_channel, C_channel))
-        for i in range(C_channel):
-            self.map[i, :i+1] = 1
-        
-        self.CC = torch.arange(0,C_channel)+1
-
-    def forward(self, z, temp=5, is_infer=False):
-
-        # Policy/gate network
-        N, C, W, H = z.shape        
-        z = self.model_gate(z.view(N, -1))      # N x C
-        
-        
-        if self.map.device != prob.device:
-            self.map = self.map.to(prob.device)
-            self.CC = self.CC.to(prob.device).float()
-
-        if is_infer: # If used for inference
-            index = torch.argmax(z, dim=-1)
-            hard_mask = torch.zeros_like(prob)
-            for i in range(hard_mask.shape[0]):
-                hard_mask[i, :index[i]] = 1
-            return hard_mask, z
-
-        else: # If used for training, adopt gumbel-softmax
-            if self.method == 'gate_acu':
-                prob = torch.sigmoid(z)
-                with torch.no_grad(): 
-                    prob_cum = torch.cumsum(prob, dim=1)
-                    tmp = prob_cum-self.threshold
-                    index = torch.sum(tmp<0, dim=1)
-                    hard_mask = torch.zeros_like(prob)
-                    for i in range(hard_mask.shape[0]):
-                        hard_mask[i, :index[i]] = 1
-                return hard_mask, prob
-
-            elif self.method == 'gumbel':
-                
-                hard = nn.functional.gumbel_softmax(z, temp, dim=-1. hard=True)
-
-                hard_mask = torch.matmul(hard, self.map)
-
-                return hard_mask, z
-
-
-class Policy_dyna_cate(nn.Module):
-    def __init__(self, ngf=64, max_ngf=512, C_channel=16, n_downsampling=2, norm_layer=nn.BatchNorm2d, image_W=32, image_H=32, is_infer=False, method='gate'):
-
-        super(Policy_dyna_cate, self).__init__()
-
-        if type(norm_layer) == functools.partial:
-            use_bias = norm_layer.func == nn.InstanceNorm2d
-        else:
-            use_bias = norm_layer == nn.InstanceNorm2d
-
-        activation = nn.ReLU(True)
-
-        mult = 2 ** n_downsampling
-        image_W = image_W//mult
-        image_H = image_H//mult
-
-        # Policy network
-        model = [nn.Conv2d(min(ngf * mult * 2, max_ngf), C_channel, kernel_size=3, padding=1, bias=use_bias),
-                 norm_layer(C_channel), activation]
-        self.model_gate_1 = nn.Sequential(*model)
-
-        model = [nn.Linear(image_W*image_H*C_channel, 128), nn.BatchNorm1d(128), activation,
-                 nn.Linear(128, 64), nn.BatchNorm1d(64), activation,
-                 nn.Linear(64, C_channel)]
-        self.model_gate_2 = nn.Sequential(*model)
-
-        self.is_infer = is_infer
         self.method = method
 
-        self.map = torch.zeros((C_channel, C_channel))
-        for i in range(C_channel):
-            self.map[i, :i+1] = 1
-        
-        self.CC = torch.arange(0,C_channel)+1
-
-    def forward(self, z, temp=5):
+    def forward(self, z, SNR, temp=5):
 
         # Policy/gate network
         N, C, W, H = z.shape
-        z_1 = self.model_gate_1(z).view(N, -1)
-        z_2 = self.model_gate_2(z_1)      # N x C
+        z = self.model_gate(torch.cat((z.mean((-2, -1)), SNR), -1))      # N x C+1
 
-        prob = nn.functional.softmax(z_2.squeeze(), dim=-1)
+        if self.method == 'gumbel':
 
-        if self.map.device != prob.device:
-            self.map = self.map.to(prob.device)
-            self.CC = self.CC.to(prob.device).float()
-
-        if self.is_infer: # If used for inference
-            selection = torch.multinomial(prob, 1).squeeze()
-            hard_mask = self.map[selection, :]
-            return hard_mask, prob
-            
-        else: # If used for training, adopt gumbel-softmax 
-            
-            prob = clamp_probs(prob)  # N x C
-            #uniforms = clamp_probs(torch.rand_likz_2e(prob))  # N x C
-            #logits = (prob.log()-clamp_probs(-uniforms.log()).log())/temp
-            #soft = nn.functional.softmax(logits, -1)
-            soft = nn.functional.gumbel_softmax(prob.log(), temp, dim=-1)
+            soft = nn.functional.gumbel_softmax(z, temp, dim=-1)
 
             with torch.no_grad():
                 index = torch.zeros_like(soft)
-                index[torch.arange(0,N), soft.argmax(-1)] = 1
-                bias = index-soft
-            
-            hard = soft+bias
+                index[torch.arange(0, N), soft.argmax(-1)] = 1
+                bias = index - soft
 
-            soft_mask = torch.matmul(soft, self.map)           
-            hard_mask = torch.matmul(hard, self.map)
+            hard = soft + bias
+            soft_mask = one_hot_to_thermo(soft[:, 1:])
+            hard_mask = one_hot_to_thermo(hard[:, 1:])
 
-            count = torch.matmul(soft, self.CC)
-
-            return hard_mask, soft_mask, prob, count
+            return hard_mask, soft_mask, z
 
 
+def one_hot_to_thermo(h):
+    # 1. flip the order
+    h = torch.flip(h, [-1])
+    # 2. Accumulate sume
+    s = torch.cumsum(h, -1)
+    # 3. flip the result
+    return torch.flip(s, [-1])
+
+
+class modulation(nn.Module):
+    def __init__(self, C_channel):
+
+        super(modulation, self).__init__()
+
+        activation = nn.ReLU(True)
+
+        # Policy network
+        model_multi = [nn.Linear(C_channel + 1, C_channel), activation,
+                       nn.Linear(C_channel, C_channel), nn.Sigmoid()]
+
+        model_add = [nn.Linear(C_channel + 1, C_channel), activation,
+                     nn.Linear(C_channel, C_channel)]
+
+        self.model_multi = nn.Sequential(*model_multi)
+        self.model_add = nn.Sequential(*model_add)
+
+    def forward(self, z, SNR):
+
+        # Policy/gate network
+        N, C, W, H = z.shape
+
+        z_mean = torch.mean(z, (-2, -1))
+        z_cat = torch.cat((z_mean, SNR), -1)
+
+        factor = self.model_multi(z_cat).view(N, C, 1, 1)
+        addition = self.model_add(z_cat).view(N, C, 1, 1)
+
+        return z * factor + addition

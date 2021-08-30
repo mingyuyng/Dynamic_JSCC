@@ -77,17 +77,20 @@ elif opt.dataset_mode == 'OpenImage':
 ############################ Things recommanded to be changed ##########################################
 # Set up the training procedure
 opt.C_channel = 16
-opt.SNR = 20
-opt.is_infer = True 
 opt.method = 'gumbel'
-opt.temp = 5
-opt.lambda_reward = 1
-opt.lambda_L2 = 256       # The weight for L2 loss
+opt.temp = 3
+opt.eta = 0.05
+opt.lambda_reward = 0.2
+opt.lambda_L2 = 200       # The weight for L2 loss
 opt.selection = True
-
+opt.N_input = 256
+opt.N_options = 4
+opt.is_noise = True
+opt.constant = False
 opt.how_many_channel = 5
-opt.num_test = 500
-opt.threshold=4
+opt.num_test = 100
+opt.is_test = True
+opt.SNR = 15
 ##############################################################################################################
 
 opt.activation = 'sigmoid'    # The output activation function at the last layer in the decoder
@@ -149,9 +152,9 @@ else:
 opt.checkpoints_dir = './Checkpoints/' + opt.dataset_mode + '_dynamic'
 
 if opt.selection:
-    opt.name = 'C' + str(opt.C_channel) + '_SNR_' + str(opt.SNR) + '_method_' + opt.method + '_L2_' + str(opt.lambda_L2)
+    opt.name = 'C' + str(opt.C_channel) + '_method_' + opt.method + '_L2_' + str(opt.lambda_L2) + '_re_' + str(opt.lambda_reward) + '_noise_' + str(opt.is_noise) + '_' + str(opt.constant)
 else:
-    opt.name = 'C' + str(opt.C_channel) + '_SNR_' + str(opt.SNR)
+    opt.name = 'C' + str(opt.C_channel) + '_noise_' + str(opt.is_noise)
 
 opt.display_env = opt.dataset_mode + opt.name
 
@@ -175,7 +178,7 @@ else:
 PSNR_list = []
 SSIM_list = []
 N_channel_list = []
-
+count_list = [[], [], [], [], [], [], [], [], [], []]
 for i, data in enumerate(dataset):
     if i >= opt.num_test:  # only apply our model to opt.num_test images.
         break
@@ -188,11 +191,13 @@ for i, data in enumerate(dataset):
         input = data['data']
 
     model.set_input(input.repeat(opt.how_many_channel, 1, 1, 1))
-    model.forward(is_infer=False-)
+    model.temp = 0.005
+    model.forward()
     fake = model.fake
     hard_mask = model.hard_mask
 
     N_channel_list.append(hard_mask[0].sum().item())
+    count_list[data[1].item()].append(hard_mask[0].sum().item())
 
     # Get the int8 generated images
     img_gen_numpy = fake.detach().cpu().float().numpy()
@@ -215,17 +220,20 @@ for i, data in enumerate(dataset):
     # ms_ssim_val = ms_ssim(img_gen_tensor,origin_tensor.repeat(opt.how_many_channel,1,1,1), data_range=255, size_average=False ) #(N,)
     SSIM_list.append(torch.mean(ssim_val).item())
 
-    # Save the first sampled image
-    save_path = f'{output_path}/{i}_PSNR_{PSNR[0]:.3f}_SSIM_{ssim_val[0]:.3f}_C_{N_channel_list[-1]:.1f}.png'
-    util.save_image(util.tensor2im(fake[0].unsqueeze(0)), save_path, aspect_ratio=1)
+    for j in range(opt.how_many_channel):
+        # Save the first sampled image
+        save_path = f'{output_path}/{i}_PSNR_{PSNR[j]:.3f}_SSIM_{ssim_val[j]:.3f}_C_{hard_mask[j].sum().item():.1f}_SNR_{model.snr[j].item()}dB.png'
+        util.save_image(util.tensor2im(fake[j].unsqueeze(0)), save_path, aspect_ratio=1)
 
-    save_path = f'{output_path}/{i}.png'
-    util.save_image(util.tensor2im(input), save_path, aspect_ratio=1)
+        save_path = f'{output_path}/{i}.png'
+        util.save_image(util.tensor2im(input), save_path, aspect_ratio=1)
 
     if i % 100 == 0:
         print(i)
 
+counts = [np.mean(count_list[i]) for i in range(10)]
 
 print(f'Mean PSNR: {np.mean(PSNR_list):.3f}')
 print(f'Mean SSIM: {np.mean(SSIM_list):.3f}')
 print(f'Mean Channel: {np.mean(N_channel_list):.3f}')
+print(f"Counts: {*counts,}")

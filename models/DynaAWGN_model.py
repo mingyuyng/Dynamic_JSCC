@@ -9,6 +9,7 @@ from .base_model import BaseModel
 from . import networks
 import scipy.io as sio
 import random
+import math
 
 class DynaAWGNModel(BaseModel):
 
@@ -35,10 +36,10 @@ class DynaAWGNModel(BaseModel):
                                           init_gain=opt.init_gain, gpu_ids=self.gpu_ids, first_kernel=opt.first_kernel, activation=opt.activation)
 
         self.netP = networks.define_dynaP(ngf=opt.ngf, max_ngf=opt.max_ngf,
-                                          n_downsample=opt.n_downsample, C_channel=opt.C_channel,
+                                          n_downsample=opt.n_downsample, C_channel=opt.N_input,
                                           norm=opt.norm_EG, init_type=opt.init_type,
                                           init_gain=opt.init_gain, gpu_ids=self.gpu_ids,
-                                          image_W=opt.image_size, image_H=opt.image_size, is_infer=opt.is_infer, method=opt.method, threshold=opt.threshold)
+                                          image_W=opt.image_size, image_H=opt.image_size, method=opt.method, N_output=opt.N_options + 1)
 
         # if self.isTrain and self.is_GAN:  # define a discriminator;
         self.size_out = (opt.size // (2**opt.n_downsample))**2
@@ -75,32 +76,51 @@ class DynaAWGNModel(BaseModel):
     def set_img_path(self, path):
         self.image_paths = path
 
-    def forward(self, is_infer=False):
+    def forward(self):
+
+        if self.opt.SNR is not None:
+            self.snr = torch.ones(self.real_A.shape[0], 1).to(self.device) * self.opt.SNR
+        else:
+            self.snr = torch.rand(self.real_A.shape[0], 1).to(self.device) * 20
 
         # Generate latent vector
-        latent, z = self.netE(self.real_A)
-        
+        latent, z = self.netE(self.real_A, self.snr)
+
         # Generate decision mask
-        self.hard_mask, prob = self.netP(latent, self.temp, is_infer)
-        self.count = self.hard_mask.sum(-1)/latent.shape[1]
+        self.hard_mask, self.soft_mask, prob = self.netP(z, self.snr, self.temp)
 
         # Normalize each channel
         latent_sum = torch.sqrt((latent**2).mean((-2, -1), keepdim=True))
         latent = latent / latent_sum
-        
+
+        # Reshape the latent
+        N, C, W, H = latent.shape
+        pad = torch.ones((N, self.opt.N_options), device=self.device)
+        self.hard_mask = torch.cat((pad, self.hard_mask), -1)
+        self.soft_mask = torch.cat((pad, self.soft_mask), -1)
+
+        self.count = self.hard_mask.sum(-1)
+        latent_res = latent.view(N, 2 * self.opt.N_options, -1)
+
         if self.opt.selection:
             # zero out the redundant latents
-            latent = latent * self.hard_mask.unsqueeze(-1).unsqueeze(-1)
+            if not self.opt.is_test:
+                latent_res = latent_res * self.soft_mask.unsqueeze(-1)
+            else:
+                latent_res = latent_res * self.hard_mask.unsqueeze(-1)
 
-        if self.opt.SNR is not None:
+        if self.opt.is_noise is not None:
             with torch.no_grad():
-                self.sigma = 10**(-self.opt.SNR/20)
-                noise = self.sigma * torch.randn_like(latent)
+                self.sigma = 10**(-self.snr / 20)
+                noise = self.sigma.view(self.real_A.shape[0], 1, 1) * torch.randn_like(latent_res)
                 if self.opt.selection:
-                    noise = noise * self.hard_mask.unsqueeze(-1).unsqueeze(-1)
-            latent = latent + noise
+                    if not self.opt.is_test:
+                        noise = noise * self.soft_mask.unsqueeze(-1)
+                    else:
+                        noise = noise * self.hard_mask.unsqueeze(-1)
+            latent_res = latent_res + noise
 
-        self.fake = self.netG(latent)
+        self.fake = self.netG(latent_res.view(latent.shape), self.snr)
 
     def backward_G(self):
         """Calculate GAN and L1 loss for the generator"""
@@ -110,8 +130,12 @@ class DynaAWGNModel(BaseModel):
             self.loss_G_reward = torch.mean(self.count)
         else:
             self.loss_G_reward = torch.zeros_like(self.loss_G_L2)
-        
-        self.loss_G = self.loss_G_L2 + self.opt.lambda_reward*self.loss_G_reward
+
+        self.loss_reg = 0
+        for param in self.netP.parameters():
+            self.loss_reg += torch.sum(param**2)
+
+        self.loss_G = self.loss_G_L2 + self.opt.lambda_reward * self.loss_G_reward
         self.loss_G.backward()
 
     def optimize_parameters(self):
@@ -121,18 +145,8 @@ class DynaAWGNModel(BaseModel):
         self.backward_G()                   # calculate graidents for G
         self.optimizer_G.step()             # udpate G's weights
 
-    def cal_weight_L2(self):
-
-        sum_P = 0
-        for param in self.netP.parameters():
-            sum_P += torch.mean(param**2)
-
-        sum_E = 0
-        for param in self.netE.parameters():
-            sum_E += torch.mean(param**2)
-
-        sum_G = 0
-        for param in self.netG.parameters():
-            sum_G += torch.mean(param**2)
-
-        return sum_P, sum_E, sum_G
+    def update_temp(self):
+        self.temp *= math.exp(-self.opt.eta)
+        self.temp = max(self.temp, 0.005)
+        if self.opt.constant:
+            self.temp = 0.67

@@ -73,20 +73,22 @@ elif opt.dataset_mode == 'OpenImage':
 ############################ Things recommanded to be changed ##########################################
 # Set up the training procedure
 opt.C_channel = 16
-opt.SNR = 20
-opt.is_infer = False
 opt.method = 'gumbel'
-opt.threshold = 4
-opt.temp = 3
-opt.lambda_reward = 1
-opt.lambda_L2 = 256       # The weight for L2 loss
-opt.selection = False
-
+opt.temp = 5
+opt.eta = 0.025
+opt.lambda_reward = 0.1
+opt.lambda_L2 = 200       # The weight for L2 loss
+opt.selection = True
+opt.N_input = 256
+opt.N_options = 4
+opt.is_noise = True
+opt.constant = False
+opt.SNR = None
+opt.is_test = False
 ##############################################################################################################
 
 opt.activation = 'sigmoid'    # The output activation function at the last layer in the decoder
 opt.norm_EG = 'batch'
-
 
 if opt.dataset_mode == 'CIFAR10':
     opt.dataroot = './data'
@@ -145,9 +147,9 @@ else:
 opt.checkpoints_dir = './Checkpoints/' + opt.dataset_mode + '_dynamic'
 
 if opt.selection:
-    opt.name = 'C' + str(opt.C_channel) + '_SNR_' + str(opt.SNR) + '_method_' + opt.method + '_L2_' + str(opt.lambda_L2)
+    opt.name = 'C' + str(opt.C_channel) + '_method_' + opt.method + '_L2_' + str(opt.lambda_L2) + '_re_' + str(opt.lambda_reward) + '_noise_' + str(opt.is_noise) + '_' + str(opt.constant)
 else:
-    opt.name = 'C' + str(opt.C_channel) + '_SNR_' + str(opt.SNR)
+    opt.name = 'C' + str(opt.C_channel) + '_noise_' + str(opt.is_noise)
 
 opt.display_env = opt.dataset_mode + opt.name
 
@@ -162,16 +164,13 @@ total_iters = 0                # the total number of training iterations
 # Train with the Discriminator
 loss_D_list = []
 loss_G_list = []
-count = 0
-temp = opt.temp
 eps = 1e-3
 
-eta = 0.03
-n_epochs_warmup = 50
-n_epochs_joint = 150
-n_epochs_fine = 100
+n_epochs_warmup = 0
+n_epochs_joint = 200
+n_epochs_fine = 200
 
-lr_warmup = 1e-3
+lr_warmup = 5e-4
 lr_joint = 1e-4
 lr_fine = 1e-5
 
@@ -181,40 +180,44 @@ gap = (opt.temp - eps) / opt.n_epochs
 
 # Setupt the warmup stage
 print('Warm up stage begins!')
-model.optimizer_G.param_groups[0]['lr'] = lr_warmup
-print(f'Learning rate changed to {lr_warmup}')
+model.optimizer_G.param_groups[0]['lr'] = lr_joint
+print(f'Learning rate changed to {lr_joint}')
 # Dsiable the update for the policy network
 for param in model.netP.parameters():
-    param.requires_grad = False
+    param.requires_grad = True
 print('Policy Network Disabled!')
 
+lr = 0
 for epoch in range(opt.epoch_count, total_epoch + 1):    # outer loop for different epochs; we save the model by <epoch_count>, <epoch_count>+<save_latest_freq>
     epoch_start_time = time.time()  # timer for entire epoch
     iter_data_time = time.time()    # timer for data loading per iteration
     epoch_iter = 0                  # the number of training iterations in current epoch, reset to 0 every epoch
     visualizer.reset()              # reset the visualizer: make sure it saves the results to HTML at least once every epoch
 
-    # Update temperature
-    model.temp = max(opt.temp * math.exp(-eta * (epoch - 1)), 0.01)
-    print(f'Update temperature to {model.temp}')
-
     # Setup the joint training stage
     if epoch == n_epochs_warmup + 1:
         print('Joint learning stage begins!')
-        model.optimizer_G.param_groups[0]['lr'] = lr_joint
-        print(f'Learning rate changed to {lr_joint}')
+        lr = lr_joint
+        model.optimizer_G.param_groups[0]['lr'] = lr
+        print(f'Learning rate changed to {lr}')
         for param in model.netP.parameters():
             param.requires_grad = True
         print('Policy Network Enabled!')
 
     if epoch == n_epochs_warmup + n_epochs_joint + 1:
         print('Fine-tuning stage begins!')
-        model.optimizer_G.param_groups[0]['lr'] = lr_fine
-        print(f'Learning rate changed to {lr_fine}')
+        lr = lr_joint
+        model.optimizer_G.param_groups[0]['lr'] = lr
+        print(f'Learning rate changed to {lr}')
         for param in model.netP.parameters():
             param.requires_grad = False
         print('Policy Network Disabled!')
         #opt.is_infer = True
+
+    if epoch > n_epochs_warmup + n_epochs_joint + 1:
+        lr -= lr_joint / n_epochs_fine
+        model.optimizer_G.param_groups[0]['lr'] = lr
+        print(f'Learning rate changed to {lr}')
 
     for i, data in enumerate(dataset):  # inner loop within one epoch
         iter_start_time = time.time()  # timer for computation per iteration
@@ -259,6 +262,9 @@ for epoch in range(opt.epoch_count, total_epoch + 1):    # outer loop for differ
         print('saving the model at the end of epoch %d, iters %d' % (epoch, total_iters))
         model.save_networks('latest')
         model.save_networks(epoch)
+    # Update temperature
+    model.update_temp()
+    print(f'Update temperature to {model.temp}')
 
     print('End of epoch %d / %d \t Time Taken: %d sec' % (epoch, opt.n_epochs + opt.n_epochs_decay, time.time() - epoch_start_time))
     # model.update_learning_rate()
