@@ -72,13 +72,13 @@ elif opt.dataset_mode == 'OpenImage':
 
 ############################ Things recommanded to be changed ##########################################
 # Set up the training procedure
-opt.C_channel = 16
+opt.C_channel = 14
 opt.method = 'gumbel'
 opt.temp = 5
 opt.eta = 0.025
 opt.lambda_reward = 0.1
 opt.lambda_L2 = 200       # The weight for L2 loss
-opt.selection = True
+opt.selection = False
 opt.N_input = 256
 opt.N_options = 4
 opt.is_noise = True

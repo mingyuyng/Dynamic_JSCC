@@ -88,6 +88,8 @@ class DynaAWGNModel(BaseModel):
 
         # Generate decision mask
         self.hard_mask, self.soft_mask, prob = self.netP(z, self.snr, self.temp)
+        
+        #self.hard_mask = torch.cat((torch.ones((self.hard_mask.shape[0], 4), device=self.device), torch.zeros((self.hard_mask.shape[0], 0), device=self.device)), -1)
 
         # Normalize each channel
         latent_sum = torch.sqrt((latent**2).mean((-2, -1), keepdim=True))
