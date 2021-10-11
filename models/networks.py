@@ -4,21 +4,8 @@ import torch
 import torch.nn as nn
 from torch.nn import init
 import functools
-from torch.optim import lr_scheduler
-import numpy as np
 from torch.nn import functional as F
-from typing import List, Callable, Union, Any, TypeVar, Tuple
-from math import exp
-from torch.distributions.utils import broadcast_all, probs_to_logits, logits_to_probs, lazy_property, clamp_probs
-from torch.distributions.normal import Normal
-from torch.distributions import kl_divergence
 
-# from torch import tensor as Tensor
-
-Tensor = TypeVar('torch.tensor')
-###############################################################################
-# Functions
-###############################################################################
 
 
 class Identity(nn.Module):

@@ -3,12 +3,8 @@
 import numpy as np
 import torch
 import os
-from torch.autograd import Variable
-from util.image_pool import ImagePool
 from .base_model import BaseModel
 from . import networks
-import scipy.io as sio
-import random
 import math
 
 class DynaAWGNModel(BaseModel):
@@ -53,7 +49,7 @@ class DynaAWGNModel(BaseModel):
             self.optimizers.append(self.optimizer_G)
 
         self.opt = opt
-        self.temp = opt.temp_init
+        self.temp = opt.temp_init if opt.isTrain else 5
 
     def name(self):
         return 'DynaAWGN_Model'

@@ -1,23 +1,12 @@
 # Copyright (C) 2017 NVIDIA Corporation. All rights reserved.
 # Licensed under the CC BY-NC-SA 4.0 license (https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode).
 import time
-import math
 from models import create_model
-from data import create_dataset
 from options.train_options import TrainOptions
-from data.data_loader import CreateDataLoader
-import util.util as util
-from util.visualizer import Visualizer
 import os
-import numpy as np
 import torch
 import torchvision
 import torchvision.transforms as transforms
-import scipy.io as sio
-
-# Set random seed
-torch.manual_seed(2)
-np.random.seed(0)
 
 # Extract the options
 opt = TrainOptions().parse()

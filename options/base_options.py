@@ -20,8 +20,6 @@ class BaseOptions():
     def initialize(self, parser):
         """Define the common options that are used in both training and test."""
         # basic parameters
-        #parser.add_argument('--dataroot', required=True, help='path to images (should have subfolders trainA, trainB, valA, valB, etc)')
-        parser.add_argument('--name', type=str, default='experiment_name', help='name of the experiment. It decides where to store samples and models')
         parser.add_argument('--gpu_ids', type=str, default='0', help='gpu ids: e.g. 0  0,1,2, 0,2. use -1 for CPU')
         parser.add_argument('--checkpoints_dir', type=str, default='./Checkpoints', help='models are saved here')
 
@@ -35,7 +33,6 @@ class BaseOptions():
         parser.add_argument('--norm', type=str, default='batch', help='instance normalization or batch normalization [instance | batch | none]')
         parser.add_argument('--init_type', type=str, default='normal', help='network initialization [normal | xavier | kaiming | orthogonal]')
         parser.add_argument('--init_gain', type=float, default=0.02, help='scaling factor for normal, xavier and orthogonal.')
-        parser.add_argument('--no_dropout', action='store_true', help='no dropout for the generator')
         parser.add_argument('--n_downsample', type=int, default=2, help='number of downsample layers')
         parser.add_argument('--n_blocks', type=int, default=2, help='number of residual blocks')
         parser.add_argument('--C_channel', type=int, default=16, help='number of channels of the encoder output')
@@ -44,6 +41,8 @@ class BaseOptions():
         parser.add_argument('--select', type=str, default='hard', help='using hard or soft mask [hard | soft]')
         parser.add_argument('--SNR_MAX', type=int, default=20, help='maximum SNR')
         parser.add_argument('--SNR_MIN', type=int, default=0, help='minimum SNR')
+        parser.add_argument('--lambda_reward', type=float, default=0.4, help='weight for efficiency loss')
+        parser.add_argument('--lambda_L2', type=float, default=200, help='weight for MSE loss')
 
         # dataset parameters
         parser.add_argument('--batch_size', type=int, default=128, help='input batch size')
@@ -102,13 +101,6 @@ class BaseOptions():
         message += '----------------- End -------------------'
         print(message)
 
-        # save to the disk
-        expr_dir = os.path.join(opt.checkpoints_dir, opt.name)
-        util.mkdirs(expr_dir)
-        file_name = os.path.join(expr_dir, '{}_opt.txt'.format(opt.phase))
-        with open(file_name, 'wt') as opt_file:
-            opt_file.write(message)
-            opt_file.write('\n')
 
     def parse(self):
         """Parse our options, create checkpoints directory suffix, and set up gpu device."""

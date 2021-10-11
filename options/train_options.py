@@ -27,8 +27,7 @@ class TrainOptions(BaseOptions):
         parser.add_argument('--lr_fine', type=float, default=1e-5, help='learning rate for fine-tuning')
         parser.add_argument('--temp_init', type=int, default=5, help='initial temperature for Gumbel-Softmax')
         parser.add_argument('--eta', type=float, default=0.015, help='decay factor for annealling')
-        parser.add_argument('--lambda_reward', type=float, default=0.3, help='weight for efficiency loss')
-        parser.add_argument('--lambda_L2', type=float, default=200, help='weight for MSE loss')
+        
           
         self.isTrain = True
         return parser
