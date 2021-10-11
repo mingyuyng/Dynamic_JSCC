@@ -39,8 +39,8 @@ class BaseOptions():
         parser.add_argument('--select', type=str, default='hard', help='using hard or soft mask [hard | soft]')
         parser.add_argument('--SNR_MAX', type=int, default=20, help='maximum SNR')
         parser.add_argument('--SNR_MIN', type=int, default=0, help='minimum SNR')
-        parser.add_argument('--lambda_reward', type=float, default=0.4, help='weight for efficiency loss')
-        parser.add_argument('--lambda_L2', type=float, default=200, help='weight for MSE loss')
+        parser.add_argument('--lambda_reward', type=float, default=1.5e-3, help='weight for efficiency loss')
+        parser.add_argument('--lambda_L2', type=float, default=1, help='weight for MSE loss')
 
         # dataset parameters
         parser.add_argument('--batch_size', type=int, default=128, help='input batch size')
