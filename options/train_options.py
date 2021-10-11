@@ -10,8 +10,8 @@ class TrainOptions(BaseOptions):
     def initialize(self, parser):
         parser = BaseOptions.initialize(self, parser)
         # network saving and loading parameters
-        parser.add_argument('--save_latest_freq', type=int, default=2000, help='frequency of saving the latest results')
-        parser.add_argument('--print_freq', type=int, default=1024, help='frequency of ploting losses')
+        parser.add_argument('--save_latest_freq', type=int, default=20480, help='frequency of saving the latest results')
+        parser.add_argument('--print_freq', type=int, default=10240, help='frequency of ploting losses')
         parser.add_argument('--save_epoch_freq', type=int, default=40, help='frequency of saving checkpoints at the end of epochs')
         parser.add_argument('--save_by_iter', action='store_true', help='whether saves model by iteration')
         parser.add_argument('--continue_train', action='store_true', help='continue training: load the latest model')
