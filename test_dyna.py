@@ -80,9 +80,9 @@ opt.C_channel = 16
 opt.method = 'gumbel'
 opt.temp = 3
 opt.eta = 0.05
-opt.lambda_reward = 0.3
+opt.lambda_reward = 0.5
 opt.lambda_L2 = 200       # The weight for L2 loss
-opt.selection = False
+opt.selection = True
 opt.N_input = 256
 opt.N_options = 4
 opt.is_noise = True
@@ -92,6 +92,7 @@ opt.num_test = 10000
 opt.is_test = True
 opt.SNR = 20
 opt.force_length = 0
+opt.select = 'hard'
 ##############################################################################################################
 
 opt.activation = 'sigmoid'    # The output activation function at the last layer in the decoder
@@ -114,13 +115,12 @@ if opt.dataset_mode == 'CIFAR10':
 else:
     raise Exception('Not implemented yet')
 
-
 ########################################  OFDM setting  ###########################################
 # Display setting
 opt.checkpoints_dir = './Checkpoints/' + opt.dataset_mode + '_dynamic'
 
 if opt.selection:
-    opt.name = 'C' + str(opt.C_channel) + '_method_' + opt.method + '_L2_' + str(opt.lambda_L2) + '_re_' + str(opt.lambda_reward) + '_noise_' + str(opt.is_noise) + '_' + str(opt.constant)
+    opt.name = 'C' + str(opt.C_channel) + '_method_' + opt.method + '_L2_' + str(opt.lambda_L2) + '_re_' + str(opt.lambda_reward) + '_noise_' + str(opt.is_noise) + '_' + str(opt.constant) + '_' + opt.select
 else:
     opt.name = 'C' + str(opt.C_channel) + '_noise_' + str(opt.is_noise)
 
@@ -150,16 +150,14 @@ count_list = [[], [], [], [], [], [], [], [], [], []]
 PSNR_class_list = [[], [], [], [], [], [], [], [], [], []]
 #usage = []
 
-index = np.load(f'SNR_{opt.SNR}_alpha_{opt.lambda_reward}.npy')
-PSNR_output = []
-SSIM_output = []
-
-import pdb; pdb.set_trace()  # breakpoint 22bac24d //
+#index = np.load(f'SNR_{opt.SNR}_alpha_{opt.lambda_reward}.npy')
+#PSNR_output = []
+#SSIM_output = []
 
 for i, data in enumerate(dataset):
     if i >= opt.num_test:  # only apply our model to opt.num_test images.
         break
-    
+
     start_time = time.time()
 
     if opt.dataset_mode in ['CIFAR10', 'CIFAR100']:
@@ -176,7 +174,6 @@ for i, data in enumerate(dataset):
     N_channel_list.append(hard_mask[0].sum().item())
     count_list[data[1].item()].append(hard_mask[0].sum().item())
 
-
     # Get the int8 generated images
     img_gen_numpy = fake.detach().cpu().float().numpy()
     img_gen_numpy = (np.transpose(img_gen_numpy, (0, 2, 3, 1)) + 1) / 2.0 * 255.0
@@ -190,7 +187,7 @@ for i, data in enumerate(dataset):
 
     PSNR = 10 * np.log10((255**2) / diff)
     PSNR_list.append(np.mean(PSNR))
-    
+
     PSNR_class_list[data[1].item()].append(PSNR)
 
     img_gen_tensor = torch.from_numpy(np.transpose(img_gen_int8, (0, 3, 1, 2))).float()
@@ -199,7 +196,7 @@ for i, data in enumerate(dataset):
     ssim_val = ssim(img_gen_tensor, origin_tensor.repeat(opt.how_many_channel, 1, 1, 1), data_range=255, size_average=False)  # return (N,)
     # ms_ssim_val = ms_ssim(img_gen_tensor,origin_tensor.repeat(opt.how_many_channel,1,1,1), data_range=255, size_average=False ) #(N,)
     SSIM_list.append(torch.mean(ssim_val).item())
-    
+
     for j in range(opt.how_many_channel):
         # Save the first sampled image
         save_path = f'{output_path}/{i}_PSNR_{PSNR[j]:.3f}_SSIM_{ssim_val[j]:.3f}_C_{hard_mask[j].sum().item():.1f}_SNR_{model.snr[j].item()}dB.png'
@@ -214,7 +211,7 @@ for i, data in enumerate(dataset):
 counts = [np.mean(count_list[i]) for i in range(10)]
 PSNRs = [np.mean(np.hstack(PSNR_class_list[i])) for i in range(10)]
 
-#np.save(f'SNR_{opt.SNR}_alpha_{opt.lambda_reward}.npy', np.array(N_channel_list))
+np.save(f'SNR_{opt.SNR}_alpha_{opt.lambda_reward}.npy', np.array(N_channel_list))
 
 print(f'Mean PSNR: {np.mean(PSNR_list):.3f}')
 print(f'Mean SSIM: {np.mean(SSIM_list):.3f}')
