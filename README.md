@@ -1,6 +1,11 @@
 # Dynamic_JSCC
 
+This is the code for paper [Deep Joint Source-Channel Coding for Wireless Image Transmission with Adaptive Rate Control](https://arxiv.org/abs/2110.04456). The model is implemented with PyTorch. 
+
 <img src="dyna_structure.png" alt="structure" width="700"/>
+
+# Usage
+The basic settings are contained in `options/base_options.py`, `options/train_options.py`, and `options/test_options.py`. The style of coding is borrowed from [CycleGAN](https://github.com/junyanz/pytorch-CycleGAN-and-pix2pix). 
 
 ## Training
     usage: train_dyna.py [-h] [--gpu_ids GPU_IDS]
@@ -24,6 +29,10 @@
                      [--n_epochs_fine N_EPOCHS_FINE] [--lr_joint LR_JOINT]
                      [--lr_decay LR_DECAY] [--lr_fine LR_FINE]
                      [--temp_init TEMP_INIT] [--eta ETA]
+Example usage:
+    
+    python train_dyna.py --gpu_ids '0' --select 'hard' --SNR_MIN 0 --SNR_MAX 20 --lambda_reward 2e-3
+
 
 ## Testing
     usage: test_dyna.py [-h] [--gpu_ids GPU_IDS]
@@ -40,4 +49,17 @@
                     [--load_iter LOAD_ITER] [--verbose] [--suffix SUFFIX]
                     [--phase PHASE] [--num_test NUM_TEST]
                     [--num_test_channel NUM_TEST_CHANNEL] [--SNR SNR]
+Example usage:
+    
+    python test_dyna.py --gpu_ids '0' --select 'hard' --SNR_MIN 0 --SNR_MAX 20 --lambda_reward 2e-3 --num_test 10000 --num_test_channel 1 --SNR 5
+    
+## Reference
 
+    @misc{yang2021deep,
+      title={Deep Joint Source-Channel Coding for Wireless Image Transmission with Adaptive Rate Control}, 
+      author={Mingyu Yang and Hun-Seok Kim},
+      year={2021},
+      eprint={2110.04456},
+      archivePrefix={arXiv},
+      primaryClass={eess.SP}
+    }
