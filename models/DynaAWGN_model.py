@@ -66,7 +66,7 @@ class DynaAWGNModel(BaseModel):
         
         # Generate SNR
         if self.opt.isTrain:
-            self.snr = torch.rand(self.real_A.shape[0], 1).to(self.device) * (self.opt.SNR_MAX-self.opt.SNR_MIN) - self.opt.SNR_MIN
+            self.snr = torch.rand(self.real_A.shape[0], 1).to(self.device) * (self.opt.SNR_MAX-self.opt.SNR_MIN) + self.opt.SNR_MIN
         else:
             self.snr = torch.ones(self.real_A.shape[0], 1).to(self.device) * self.opt.SNR
 
